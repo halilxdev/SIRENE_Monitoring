@@ -38,31 +38,49 @@ def get_nouvelles_entreprises():
     print("Réponse:", response.text[:500])
     return response.json()
 
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{os.getenv('TELEGRAM_TOKEN')}/sendMessage"
+    requests.post(url, data={
+        "chat_id": os.getenv('TELEGRAM_CHAT_ID'),
+        "text": message,
+        "parse_mode": "HTML"
+    })
+
 def main():
     print("Recherche des nouvelles micro-entreprises...")
     data = get_nouvelles_entreprises()
 
     if "etablissements" not in data:
         print("Aucun résultat ou erreur:", data)
+        send_telegram("❌ Erreur lors de la récupération des données INSEE")
         return
 
     etablissements = data["etablissements"]
-    print(f"\n{len(etablissements)} nouvelles micro-entreprises en Moselle hier :\n")
+    print(f"\n{len(etablissements)} nouvelles micro-entreprises en Moselle\n")
+
+    if not etablissements:
+        send_telegram("✅ Aucune nouvelle micro-entreprise aujourd'hui.")
+        return
+
+    lignes = [f"🆕 <b>{len(etablissements)} nouvelle(s) micro-entreprise(s)</b>\n"]
 
     for e in etablissements:
         ul = e.get("uniteLegale", {})
         nom = ul.get("denominationUniteLegale") or f"{ul.get('prenomUsuelUniteLegale', '')} {ul.get('nomUniteLegale', '')}"
-        
+
         adresse = e.get("adresseEtablissement", {})
         ville = adresse.get("libelleCommuneEtablissement", "")
         cp = adresse.get("codePostalEtablissement", "")
-        
+
         periodes = e.get("periodesEtablissement", [])
         code_naf = periodes[0].get("activitePrincipaleEtablissement", "") if periodes else ""
         activite = get_naf_label(code_naf)
         date_creation = e.get("dateCreationEtablissement", "")
 
         print(f"- {nom.strip()} | {activite} | {cp} {ville} | créé le {date_creation}")
+        lignes.append(f"• <b>{nom.strip()}</b>\n  {activite} — {cp} {ville}\n  Créé le {date_creation}")
+
+    send_telegram("\n\n".join(lignes))
 
 if __name__ == "__main__":
     main()
