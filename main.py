@@ -30,7 +30,7 @@ def get_nouvelles_entreprises():
     params = {
         "q": f"dateCreationEtablissement:[{date_debut} TO {date_fin}] AND ({cp_query}) AND categorieJuridiqueUniteLegale:1000",
         "nombre": 50,
-        "champs": "siret,denominationUniteLegale,nomUniteLegale,prenomUsuelUniteLegale,activitePrincipaleEtablissement,codePostalEtablissement,libelleCommuneEtablissement,dateCreationEtablissement"
+        "champs": "siret,dateCreationEtablissement,denominationUniteLegale,nomUniteLegale,prenomUsuelUniteLegale,activitePrincipaleEtablissement,codePostalEtablissement,libelleCommuneEtablissement,denominationUsuelleEtablissement,enseigne1Etablissement,numeroVoieEtablissement,typeVoieEtablissement,libelleVoieEtablissement"
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -62,7 +62,7 @@ def main():
         send_telegram("✅ Aucune nouvelle micro-entreprise aujourd'hui.")
         return
 
-    lignes = [f"🆕 <b>{len(etablissements)} nouvelle(s) micro-entreprise(s)</b>\n"]
+    lignes = [f"🆕 <b>{len(etablissements)} nouvelle(s) micro-entreprise(s) créees hier</b>\n"]
 
     for e in etablissements:
         ul = e.get("uniteLegale", {})
@@ -71,14 +71,22 @@ def main():
         adresse = e.get("adresseEtablissement", {})
         ville = adresse.get("libelleCommuneEtablissement", "")
         cp = adresse.get("codePostalEtablissement", "")
+        numero = adresse.get("numeroVoieEtablissement", "")
+        type_voie = adresse.get("typeVoieEtablissement", "")
+        libelle_voie = adresse.get("libelleVoieEtablissement", "")
+        rue = f"{numero} {type_voie} {libelle_voie}".strip()
+
+        nom_commercial = e.get("denominationUsuelleEtablissement") or e.get("enseigne1Etablissement") or ""
 
         periodes = e.get("periodesEtablissement", [])
         code_naf = periodes[0].get("activitePrincipaleEtablissement", "") if periodes else ""
         activite = get_naf_label(code_naf)
         date_creation = e.get("dateCreationEtablissement", "")
 
-        print(f"- {nom.strip()} | {activite} | {cp} {ville} | créé le {date_creation}")
-        lignes.append(f"• <b>{nom.strip()}</b>\n  {activite} — {cp} {ville}\n  Créé le {date_creation}")
+        nom_affiche = f"{nom.strip()}{' (' + nom_commercial + ')' if nom_commercial else ''}"
+
+        print(f"- {nom_affiche} | {activite} | {rue} | {cp} {ville} | créé le {date_creation}")
+        lignes.append(f"• <b>{nom_affiche}</b>\n  {activite}\n  {rue}, {cp} {ville}\n")
 
     send_telegram("\n\n".join(lignes))
 
